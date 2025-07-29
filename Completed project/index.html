@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GLB Model Viewer</title>
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+        model-viewer {
+            width: 600px;
+            height: 600px;
+            border: 1px solid #ccc;
+            background-color: #ffffff;
+        }
+    </style>
+</head>
+<body>
+    <h1>3D Model Viewer</h1>
+    <model-viewer 
+        src="Draftcopy(09_07).glb"
+        alt="3D model"
+        min-camera-orbit="auto 80deg 1m" max-camera-orbit="auto 90deg 1mm" min-field-of-view="50deg" max-field-of-view="50deg"
+        camera-orbit="0deg 80deg 1m"
+        camera-target="-1.2m 1.1m 0m"
+        shadow-intensity="1"
+        exposure="1"
+        environment-image="neutral"
+        tone-mapping="commerce"
+        shadow-softness="1"
+        timescale="5"
+        ar ar-modes="webxr scene-viewer quick-look">
+    </model-viewer>
+    <div>
+        <button onclick="switchToPauseModel()">Pause</button>
+        <button onclick="switchToPlayModel()">Play</button>
+    </div>
+
+    <script>
+        const modelViewer = document.querySelector('model-viewer');
+        let start_time = Date.now();
+        modelViewer.animationName = "Animation"; // Set default animation name
+        switchToPlayModel();
+
+        function updateExposure(value) {
+            modelViewer.exposure = value;
+        }
+
+        function updateShadow(value) {
+            modelViewer.shadowIntensity = value;
+        }
+
+        function getAnimationDuration() {
+            // Returns the duration of the current animation in seconds
+            return modelViewer.duration;
+        }
+
+        function switchToPauseModel() {
+            const animation_time = getAnimationDuration();
+            if (!animation_time || isNaN(animation_time) || animation_time <= 0) {
+                console.warn('Animation duration not available yet.');
+                return;
+            }
+            const currentTime = Date.now() - start_time;
+            const elapsedTimeInAnimation = currentTime % (animation_time * 1000); // Convert animation_time to ms
+            const timeToEnd = animation_time * 1000 - elapsedTimeInAnimation;
+            
+            
+            setTimeout(handlePauseAtEnd, timeToEnd);
+        }
+
+        function handlePauseAtEnd() {
+            // Ensure there is an animation
+            console.log(modelViewer.availableAnimations.length);
+            if (modelViewer.availableAnimations && modelViewer.availableAnimations.length > 0) {
+                // Pause the animation after it finishes
+                modelViewer.pause();
+                console.log('Animation completed and paused');
+            }
+        }
+
+        function switchToPlayModel() {
+            // Make sure we're using the playing model
+            modelViewer.src = "Draftcopy(09_07).glb";
+
+            start_time = Date.now();
+            
+            // Remove any existing animation-finished listeners to prevent unwanted pausing
+            modelViewer.removeEventListener('animation-finished', handlePauseAtEnd);
+            
+            // Start the animation from the beginning
+            modelViewer.currentTime = 0;
+            modelViewer.play();
+        }
+
+        modelViewer.addEventListener('load', () => {
+            // Animation handling
+            if (modelViewer.availableAnimations && modelViewer.availableAnimations.length > 0) {
+                // Log available animations
+                console.log('Available animations:', modelViewer.availableAnimations);
+                // Set the first animation if not already set
+                if (!modelViewer.animationName) {
+                    modelViewer.animationName = modelViewer.availableAnimations[0];
+                }
+                // Ensure autoplay is enabled
+                modelViewer.autoplay = true;
+                modelViewer.play();
+            } else {
+                console.warn('No animations found in this model.');
+            }
+
+            const scene = modelViewer.scene;
+            if (scene && scene.traverse) {
+                scene.traverse((node) => {
+                    if (node.isMesh && node.material) {
+                        // Debugging: Disable backface culling
+                        if (typeof THREE !== 'undefined') {
+                            node.material.side = THREE.DoubleSide;
+                        }
+                        node.material.needsUpdate = true;
+
+                        // Check for non-unit tangent vectors
+                        if (node.geometry && node.geometry.attributes && node.geometry.attributes.tangent) {
+                            const tangents = node.geometry.attributes.tangent.array;
+                            for (let i = 0; i < tangents.length; i += 4) {
+                                const x = tangents[i];
+                                const y = tangents[i + 1];
+                                const z = tangents[i + 2];
+                                const length = Math.sqrt(x * x + y * y + z * z);
+                                if (length === 0) {
+                                    console.warn(`Non-unit tangent vector detected in mesh: ${node.name}`);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
